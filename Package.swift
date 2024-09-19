@@ -51,8 +51,13 @@ let package = Package(
       name: "TestingTests",
       dependencies: [
         "Testing",
+        "_Testing_AppKit",
+        "_Testing_CoreGraphics",
+        "_Testing_CoreImage",
         "_Testing_Foundation",
+        "_Testing_UIKit",
         "_Testing_UniformTypeIdentifiers",
+        "_Testing_XCUIAutomation",
       ],
       swiftSettings: .packageSettings
     ),
@@ -93,6 +98,33 @@ let package = Package(
 
     // Cross-module overlays (unsupported)
     .target(
+      name: "_Testing_AppKit",
+      dependencies: [
+        "Testing",
+        "_Testing_CoreGraphics",
+      ],
+      path: "Sources/Overlays/_Testing_AppKit",
+      swiftSettings: .packageSettings
+    ),
+    .target(
+      name: "_Testing_CoreGraphics",
+      dependencies: [
+        "Testing",
+        "_Testing_UniformTypeIdentifiers",
+      ],
+      path: "Sources/Overlays/_Testing_CoreGraphics",
+      swiftSettings: .packageSettings
+    ),
+    .target(
+      name: "_Testing_CoreImage",
+      dependencies: [
+        "Testing",
+        "_Testing_CoreGraphics",
+      ],
+      path: "Sources/Overlays/_Testing_CoreImage",
+      swiftSettings: .packageSettings
+    ),
+    .target(
       name: "_Testing_Foundation",
       dependencies: [
         "Testing",
@@ -101,11 +133,32 @@ let package = Package(
       swiftSettings: .packageSettings
     ),
     .target(
+      name: "_Testing_UIKit",
+      dependencies: [
+        "Testing",
+        "_Testing_CoreGraphics",
+        "_Testing_CoreImage",
+      ],
+      path: "Sources/Overlays/_Testing_UIKit",
+      swiftSettings: .packageSettings
+    ),
+    .target(
       name: "_Testing_UniformTypeIdentifiers",
       dependencies: [
         "Testing",
       ],
       path: "Sources/Overlays/_Testing_UniformTypeIdentifiers",
+      swiftSettings: .packageSettings
+    ),
+    .target(
+      name: "_Testing_XCUIAutomation",
+      dependencies: [
+        "Testing",
+        "_Testing_AppKit",
+        "_Testing_CoreImage",
+        "_Testing_UIKit",
+      ],
+      path: "Sources/Overlays/_Testing_XCUIAutomation",
       swiftSettings: .packageSettings
     ),
   ],

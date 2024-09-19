@@ -17,6 +17,22 @@ import Foundation
 import UniformTypeIdentifiers
 @_spi(Experimental) import _Testing_UniformTypeIdentifiers
 #endif
+#if canImport(AppKit)
+import AppKit
+@_spi(Experimental) import _Testing_AppKit
+#endif
+#if canImport(UIKit)
+import UIKit
+@_spi(Experimental) import _Testing_UIKit
+#endif
+#if canImport(CoreImage)
+import CoreImage
+@_spi(Experimental) import _Testing_CoreImage
+#endif
+#if SWT_TARGET_OS_APPLE && canImport(XCTest)
+import XCTest
+@_spi(Experimental) import _Testing_XCUIAutomation
+#endif
 
 @Suite("Attachment Tests")
 struct AttachmentTests {
@@ -299,6 +315,82 @@ struct AttachmentTests {
       let attachableValue = MySendableAttachable(string: "<!doctype html>")
       let attachment = Test.Attachment(attachableValue, named: "loremipsum.txt", as: .html)
       #expect(attachment.preferredName == "loremipsum.txt.html")
+    }
+  }
+#endif
+
+#if canImport(AppKit) || canImport(UIKit)
+#if canImport(AppKit)
+  static var platformImage: NSImage {
+    get throws {
+      try #require(NSImage(systemSymbolName: "checkmark.diamond.fill", accessibilityDescription: nil))
+    }
+  }
+#elseif canImport(UIKit)
+  static var platformImage: UIImage {
+    get throws {
+      try #require(UIImage(systemName: "checkmark.diamond.fill"))
+    }
+  }
+#endif
+
+  static var cgImage: CGImage {
+    get throws {
+      let platformImage = try platformImage
+      return try #require(platformImage._attachableCGImage)
+    }
+  }
+
+  @available(_uttypesAPI, *)
+  @Test func attachCGImage() throws {
+    let attachment = Test.Attachment(try Self.cgImage, named: "diamond.jpg")
+    try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { buffer in
+      #expect(buffer.count > 32)
+    }
+  }
+
+  @available(_uttypesAPI, *)
+  @Test(arguments: [Float(0.0).nextUp, 0.25, 0.5, 0.75, 1.0], [.png as UTType?, .jpeg, .gif, .image, .data, nil])
+  func attachCGImage(quality: Float, type: UTType?) throws {
+    let attachment = Test.Attachment(try Self.cgImage, named: "diamond", as: type, encodingQuality: quality)
+    try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { buffer in
+      #expect(buffer.count > 32)
+    }
+  }
+
+#if canImport(CoreImage)
+  @available(_uttypesAPI, *)
+  @Test(arguments: [Float(0.0).nextUp, 0.25, 0.5, 0.75, 1.0], [.png as UTType?, .jpeg, .gif, .image, .data, nil])
+  func attachCIImage(quality: Float, type: UTType?) throws {
+    let image = CIImage(cgImage: try Self.cgImage)
+    let attachment = Test.Attachment(image, named: "diamond", as: type, encodingQuality: quality)
+    try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { buffer in
+      #expect(buffer.count > 32)
+    }
+  }
+#endif
+
+#if SWT_TARGET_OS_APPLE && canImport(XCTest)
+  @MainActor func emptyScreenshot() -> XCUIScreenshot {
+    XCUIScreenshot.perform(Selector("emptyScreenshot" as String)).takeUnretainedValue() as! XCUIScreenshot
+  }
+
+  @available(_uttypesAPI, *)
+  @Test(arguments: [Float(0.0).nextUp, 0.25, 0.5, 0.75, 1.0], [.png as UTType?, .jpeg, .gif, .image, .data, nil])
+  func attachXCUIScreenshot(quality: Float, type: UTType?) async throws {
+    let screenshot = await emptyScreenshot()
+    let attachment = Test.Attachment(screenshot, named: "diamond", as: type, encodingQuality: quality)
+    try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { buffer in
+      #expect(buffer.count > 32)
+    }
+  }
+#endif
+
+  @available(_uttypesAPI, *)
+  @Test func cannotAttachImageWithNonImageType() async {
+    #expect(throws: (any Error).self) {
+      let attachment = Test.Attachment(try Self.cgImage, named: "diamond", as: .mp3)
+      try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { _ in }
     }
   }
 #endif
