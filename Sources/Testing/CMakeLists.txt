@@ -71,6 +71,7 @@ add_library(Testing
   Support/Additions/ResultAdditions.swift
   Support/CartesianProduct.swift
   Support/CError.swift
+  Support/Compression.swift
   Support/Environment.swift
   Support/FileHandle.swift
   Support/GetSymbol.swift
