@@ -578,4 +578,20 @@ func appendPathComponent(_ pathComponent: String, to path: String) -> String {
   "\(path)/\(pathComponent)"
 #endif
 }
+
+/// Check if a file exists at a given path.
+///
+/// - Parameters:
+///   - path: The path to check.
+///
+/// - Returns: Whether or not the path `path` exists on disk.
+func fileExists(atPath path: String) -> Bool {
+#if os(Windows)
+  path.withCString(encodedAs: UTF16.self) { path in
+    PathFileExistsW(path)
+  }
+#else
+  0 == access(path, F_OK)
+#endif
+}
 #endif
