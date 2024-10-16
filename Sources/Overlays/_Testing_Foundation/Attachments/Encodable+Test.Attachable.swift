@@ -21,15 +21,6 @@ private import UniformTypeIdentifiers
 // protocol for types that already support Codable.
 @_spi(Experimental)
 extension Encodable where Self: Test.Attachable {
-  public var _attachmentContentType: (any Sendable)? {
-#if SWT_TARGET_OS_APPLE && canImport(UniformTypeIdentifiers)
-    if #available(_uttypesAPI, *) {
-      return UTType.json
-    }
-#endif
-    return "application/json"
-  }
-
   public func withUnsafeBufferPointer<R>(for attachment: borrowing Test.Attachment, _ body: (UnsafeRawBufferPointer) throws -> R) throws -> R {
     let format = try EncodingFormat(for: attachment)
 

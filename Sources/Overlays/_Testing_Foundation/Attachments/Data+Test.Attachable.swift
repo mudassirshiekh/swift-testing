@@ -14,10 +14,6 @@ public import Foundation
 
 @_spi(Experimental)
 extension Data: Test.Attachable {
-  public var _attachmentContentType: (any Sendable)? {
-    nil
-  }
-
   public func withUnsafeBufferPointer<R>(for attachment: borrowing Test.Attachment, _ body: (UnsafeRawBufferPointer) throws -> R) throws -> R {
     try withUnsafeBytes(body)
   }

@@ -24,28 +24,6 @@ extension Test {
   /// Generally speaking, you should not need to make new types conform to this
   /// protocol.
   public protocol Attachable: ~Copyable {
-    /// A filename to use when writing this attachment to a test report or to a
-    /// file on disk.
-    ///
-    /// The value of this property is used as a hint to the testing library. The
-    /// default implementation returns `nil`.
-    ///
-    /// Do not get the value of this property directly. Use
-    /// ``Test/Attachment/preferredName`` instead.
-    var _attachmentPreferredName: String? { get }
-
-    /// An instance of `UTType` representing the content type of this attachable
-    /// value or an instance of `String` representing its media type.
-    ///
-    /// The value of this property is used as a hint to the testing library. The
-    /// default implementation returns `nil`.
-    ///
-    /// Do not get the value of this property directly. On Apple platforms,
-    /// import the [UniformTypeIdentifiers](https://developer.apple.com/documentation/uniformtypeidentifiers)
-    /// module and use ``Test/Attachment/contentType`` instead. On other
-    /// platforms, use the ``Test/Attachment/mediaType`` property instead.
-    var _attachmentContentType: (any Sendable)? { get }
-
     /// Call a function and pass a buffer representing this instance to it.
     ///
     /// - Parameters:
@@ -71,16 +49,6 @@ extension Test {
 }
 
 // MARK: - Default implementations
-
-extension Test.Attachable where Self: ~Copyable {
-  public var _attachmentPreferredName: String? {
-    nil
-  }
-
-  public var _attachmentContentType: (any Sendable)? {
-    nil
-  }
-}
 
 // Implement the protocol requirements for byte arrays and buffers so that
 // developers can attach raw data when needed.

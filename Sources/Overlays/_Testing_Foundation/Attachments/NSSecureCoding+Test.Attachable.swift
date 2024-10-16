@@ -21,15 +21,6 @@ private import UniformTypeIdentifiers
 // NSKeyedArchiver for encoding.
 @_spi(Experimental)
 extension NSSecureCoding where Self: Test.Attachable {
-  public var _attachmentContentType: (any Sendable)? {
-#if SWT_TARGET_OS_APPLE && canImport(UniformTypeIdentifiers)
-    if #available(_uttypesAPI, *) {
-      return UTType.binaryPropertyList
-    }
-#endif
-    return "application/octet-stream"
-  }
-
   public func withUnsafeBufferPointer<R>(for attachment: borrowing Test.Attachment, _ body: (UnsafeRawBufferPointer) throws -> R) throws -> R {
     let format = try EncodingFormat(for: attachment)
 

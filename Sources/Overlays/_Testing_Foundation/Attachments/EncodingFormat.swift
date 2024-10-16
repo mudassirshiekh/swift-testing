@@ -42,11 +42,13 @@ enum EncodingFormat {
   ///
   /// - Throws: If the attachment's content type or media type is unsupported.
   init(for attachment: borrowing Test.Attachment) throws {
+    let ext = (attachment.preferredName as NSString).pathExtension
+
 #if SWT_TARGET_OS_APPLE && canImport(UniformTypeIdentifiers)
     // If the caller explicitly wants to encode their data as either XML or as a
     // property list, use PropertyListEncoder. Otherwise, we'll fall back to
     // JSONEncoder below.
-    if #available(_uttypesAPI, *), let contentType = attachment._contentType as? UTType {
+    if #available(_uttypesAPI, *), let contentType = UTType(filenameExtension: ext) {
       if contentType == .data {
         self = .default
       } else if contentType.conforms(to: .json) {
@@ -65,23 +67,6 @@ enum EncodingFormat {
     }
 #endif
 
-    if let mediaType = attachment._contentType as? String {
-      // NOTE: Binary property lists do not have a defined media type registered
-      // with the IETF.
-      switch mediaType {
-      case "application/octet-stream":
-        self = .default
-      case "application/xml", "text/xml":
-        self = .propertyListFormat(.xml)
-      case "application/json":
-        self = .json
-      default:
-        throw CocoaError(.propertyListWriteInvalid, userInfo: [NSLocalizedDescriptionKey: "The media type '\(mediaType)' cannot be used to attach an instance of \(type(of: self)) to a test."])
-      }
-      return
-    }
-
-    let ext = (attachment.preferredName as NSString).pathExtension
     if ext.isEmpty {
       // No path extension? No problem! Default data.
       self = .default

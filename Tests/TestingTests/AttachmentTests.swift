@@ -57,30 +57,25 @@ struct AttachmentTests {
     }
   }
 
-  @Test func getAndSetMediaType() async {
+#if canImport(UniformTypeIdentifiers)
+  @Test func getAndSetContentType() async {
     let attachableValue = MySendableAttachable(string: "")
-    var attachment = Test.Attachment(attachableValue)
+    var attachment = Test.Attachment(attachableValue, named: "loremipsum")
 
     // Get the default (should just be raw bytes at this point.)
-    #expect(attachment.mediaType == "application/octet-stream")
-#if canImport(UniformTypeIdentifiers)
     #expect(attachment.contentType == .data)
-#endif
 
-#if canImport(UniformTypeIdentifiers)
     // Switch to a UTType and confirm it stuck.
     attachment.contentType = .pdf
-    #expect(attachment.mediaType == "application/pdf")
     #expect(attachment.contentType == .pdf)
-#endif
+    #expect(attachment.preferredName == "loremipsum.pdf")
 
-    // Convert it back to a media type and confirm it stuck.
-    attachment.mediaType = "image/jpeg"
-    #expect(attachment.mediaType == "image/jpeg")
-#if canImport(UniformTypeIdentifiers)
+    // Convert it to a different UTType.
+    attachment.contentType = .jpeg
     #expect(attachment.contentType == .jpeg)
-#endif
+    #expect(attachment.preferredName == "loremipsum.pdf.jpeg")
   }
+#endif
 
 #if canImport(Foundation)
   @Test func attachData() async throws {
@@ -116,10 +111,6 @@ struct AttachmentTests {
         }
 
         #expect(attachment.preferredName == temporaryFileName)
-#if canImport(UniformTypeIdentifiers)
-        #expect(attachment.contentType == .html)
-        #expect(attachment.mediaType == "text/html")
-#endif
         #expect(throws: Never.self) {
           try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { buffer in
             #expect(buffer.count == data.count)
@@ -146,9 +137,6 @@ struct AttachmentTests {
         }
 
         #expect(attachment.preferredName == "\(temporaryFileName).tar.gz")
-#if canImport(UniformTypeIdentifiers)
-        #expect(attachment.contentType.conforms(to: .gzip))
-#endif
         valueAttached()
       }
     }
@@ -186,6 +174,7 @@ struct AttachmentTests {
       var result = [Self]()
 
       for forSecureCoding in [false, true] {
+        let decode = forSecureCoding ? decodeWithNSKeyedUnarchiver : decodeWithPropertyListDecoder
         result += [
           Self(
             forSecureCoding: forSecureCoding,
@@ -194,55 +183,13 @@ struct AttachmentTests {
           )
         ]
 
-        let decode = forSecureCoding ? decodeWithNSKeyedUnarchiver : decodeWithPropertyListDecoder
-#if canImport(UniformTypeIdentifiers)
-        result += [
-          Self(forSecureCoding: forSecureCoding, contentType: UTType.xml, firstCharacter: "<", decode: decode),
-          Self(forSecureCoding: forSecureCoding, contentType: UTType.xmlPropertyList, firstCharacter: "<", decode: decode),
-          Self(forSecureCoding: forSecureCoding, contentType: UTType.propertyList, firstCharacter: "b", decode: decode),
-          Self(forSecureCoding: forSecureCoding, contentType: UTType.binaryPropertyList, firstCharacter: "b", decode: decode),
-        ]
-
-        if forSecureCoding {
-          result += [
-            Self(forSecureCoding: forSecureCoding, contentType: UTType.data, firstCharacter: "b", decode: decode),
-          ]
-        } else {
-          result += [
-            Self(forSecureCoding: forSecureCoding, contentType: UTType.data, firstCharacter: "{", decode: decodeWithJSONDecoder),
-            Self(forSecureCoding: forSecureCoding, contentType: UTType.json, firstCharacter: "{", decode: decodeWithJSONDecoder),
-          ]
-        }
-#endif
-
-        result += [
-          Self(forSecureCoding: forSecureCoding, contentType: "application/xml", firstCharacter: "<", decode: decode),
-          Self(forSecureCoding: forSecureCoding, contentType: "text/xml", firstCharacter: "<", decode: decode),
-        ]
-
-        if forSecureCoding {
-          result += [
-            Self(forSecureCoding: forSecureCoding, contentType: "application/octet-stream", firstCharacter: "b", decode: decode),
-          ]
-        } else {
-          result += [
-            Self(forSecureCoding: forSecureCoding, contentType: "application/octet-stream", firstCharacter: "{", decode: decodeWithJSONDecoder),
-            Self(forSecureCoding: forSecureCoding, contentType: "application/json", firstCharacter: "{", decode: decodeWithJSONDecoder),
-          ]
-        }
-
         result += [
           Self(forSecureCoding: forSecureCoding, pathExtension: "xml", firstCharacter: "<", decode: decode),
           Self(forSecureCoding: forSecureCoding, pathExtension: "plist", firstCharacter: "b", decode: decode),
         ]
 
-        if forSecureCoding {
+        if !forSecureCoding {
           result += [
-            Self(forSecureCoding: forSecureCoding, pathExtension: "", firstCharacter: "b", decode: decode),
-          ]
-        } else {
-          result += [
-            Self(forSecureCoding: forSecureCoding, pathExtension: "", firstCharacter: "{", decode: decodeWithJSONDecoder),
             Self(forSecureCoding: forSecureCoding, pathExtension: "json", firstCharacter: "{", decode: decodeWithJSONDecoder),
           ]
         }
@@ -253,14 +200,6 @@ struct AttachmentTests {
 
     func encodeTestArgument(to encoder: some Encoder) throws {
       var container = encoder.unkeyedContainer()
-#if canImport(UniformTypeIdentifiers)
-      if let contentType = contentType as? UTType {
-        try container.encode(contentType)
-      }
-#endif
-      if let mediaType = contentType as? String {
-        try container.encode(mediaType)
-      }
       try container.encode(pathExtension)
       try container.encode(forSecureCoding)
       try container.encode(firstCharacter.asciiValue!)
@@ -275,7 +214,7 @@ struct AttachmentTests {
   @Test("Attach Codable- and NSSecureCoding-conformant values", .serialized, arguments: CodableAttachmentArguments.all())
   func attachCodable(args: CodableAttachmentArguments) async throws {
     var name = "loremipsum"
-    if let ext = args.pathExtension, !ext.isEmpty {
+    if let ext = args.pathExtension {
       name = "\(name).\(ext)"
     }
 
@@ -288,18 +227,6 @@ struct AttachmentTests {
       attachment = Test.Attachment(attachableValue, named: name)
     }
 
-#if canImport(UniformTypeIdentifiers)
-    if let contentType = args.contentType as? UTType {
-      attachment._contentType = contentType
-    }
-#endif
-    if let mediaType = args.contentType as? String {
-      attachment.mediaType = mediaType
-    }
-    if args.contentType == nil {
-      attachment._contentType = nil
-    }
-
     try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { bytes in
       #expect(bytes.first == args.firstCharacter.asciiValue)
       let decodedStringValue = try args.decode(Data(bytes))
@@ -307,31 +234,11 @@ struct AttachmentTests {
     }
   }
 
-#if canImport(UniformTypeIdentifiers)
-  @available(_uttypesAPI, *)
-  @Test("Attach NSSecureCoding-conformant value but with OpenStep plist format")
-  func attachNSSecureCodingAsOpenStep() async throws {
-    let attachableValue = MySecureCodingAttachable(string: "stringly speaking")
-    var attachment = Test.Attachment(attachableValue, named: "loremipsum")
-    attachment.contentType = try #require(UTType("com.apple.ascii-property-list"))
-
-    #expect(throws: (any Error).self) {
-      try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { _ in }
-    }
-  }
-#endif
-
   @available(_uttypesAPI, *)
   @Test("Attach NSSecureCoding-conformant value but with a JSON type")
   func attachNSSecureCodingAsJSON() async throws {
     let attachableValue = MySecureCodingAttachable(string: "stringly speaking")
-    var attachment = Test.Attachment(attachableValue, named: "loremipsum")
-#if canImport(UniformTypeIdentifiers)
-    attachment.contentType = .json
-#else
-    attachment.mediaType = "application/json"
-#endif
-
+    let attachment = Test.Attachment(attachableValue, named: "loremipsum.json")
     #expect(throws: CocoaError.self) {
       try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { _ in }
     }
@@ -341,13 +248,7 @@ struct AttachmentTests {
   @Test("Attach NSSecureCoding-conformant value but with a nonsensical type")
   func attachNSSecureCodingAsNonsensical() async throws {
     let attachableValue = MySecureCodingAttachable(string: "stringly speaking")
-    var attachment = Test.Attachment(attachableValue, named: "loremipsum")
-#if canImport(UniformTypeIdentifiers)
-    attachment.contentType = .gif
-#else
-    attachment.mediaType = "image/gif"
-#endif
-
+    let attachment = Test.Attachment(attachableValue, named: "loremipsum.gif")
     #expect(throws: CocoaError.self) {
       try attachment.attachableValue.withUnsafeBufferPointer(for: attachment) { _ in }
     }
@@ -367,7 +268,6 @@ struct AttachmentTests {
         }
 
         #expect(attachment.preferredName == "loremipsum.txt")
-        #expect(attachment.contentType == .plainText)
         valueAttached()
       }
     }
@@ -385,53 +285,21 @@ struct AttachmentTests {
         }
 
         #expect(attachment.preferredName == "loremipsum.txt")
-        #expect(attachment.contentType == .plainText)
         valueAttached()
       }
     }
   }
 
   @available(_uttypesAPI, *)
-  @Test func defaultContentType() {
-    let attachableValue = MySendableAttachable(string: "")
-    let attachment = Test.Attachment(attachableValue)
-    #expect(attachment._contentType == nil)
-    #expect(attachment.contentType == .data)
-  }
-
-  @available(_uttypesAPI, *)
   @Test func changingContentType() {
-    let attachableValue = MySendableAttachable(string: "<!doctype html>")
-    var attachment = Test.Attachment(attachableValue, named: "loremipsum", as: .plainText)
-    #expect(attachment.preferredName == "loremipsum.txt")
-    #expect(attachment.contentType == .plainText)
-
-    // Setting to a different type updates the preferred name. Note it's
-    // expected that we preserve the original extension as this is the behavior
-    // of the underlying UTType API (tries to be non-destructive to user input.)
-    attachment.contentType = .html
-    #expect(attachment.preferredName == "loremipsum.txt.html")
-    #expect(attachment.contentType == .html)
-
-    // Clearing doesn't affect anything.
-    attachment._contentType = nil
-    #expect(attachment.preferredName == "loremipsum.txt.html")
-    #expect(attachment.contentType == .data)
-  }
-
-  @available(_uttypesAPI, *)
-  @Test func extensionDecidesContentTypeWhenPresent() {
-    let attachableValue = MySendableAttachable(string: "<!doctype html>")
-    var attachment = Test.Attachment(attachableValue, named: "loremipsum.jpg")
-    #expect(attachment.preferredName == "loremipsum.jpg")
-    #expect(attachment.contentType == .jpeg)
-
-    // Clearing doesn't affect anything and setting back to the previous type
-    // also doesn't affect the preferred name.
-    attachment._contentType = nil
-    attachment.contentType = .jpeg
-    #expect(attachment.preferredName == "loremipsum.jpg")
-    #expect(attachment.contentType == .jpeg)
+    // Explicitly passing a type modifies the preferred name. Note it's expected
+    // that we preserve the original extension as this is the behavior of the
+    // underlying UTType API (tries to be non-destructive to user input.)
+    do {
+      let attachableValue = MySendableAttachable(string: "<!doctype html>")
+      let attachment = Test.Attachment(attachableValue, named: "loremipsum.txt", as: .html)
+      #expect(attachment.preferredName == "loremipsum.txt.html")
+    }
   }
 #endif
 }

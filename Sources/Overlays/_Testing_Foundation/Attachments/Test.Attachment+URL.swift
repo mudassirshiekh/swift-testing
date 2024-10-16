@@ -14,6 +14,7 @@ public import Foundation
 
 #if SWT_TARGET_OS_APPLE && canImport(UniformTypeIdentifiers)
 private import UniformTypeIdentifiers
+@_spi(Experimental) private import _Testing_UniformTypeIdentifiers
 #endif
 
 #if !SWT_NO_FILE_IO
@@ -59,34 +60,39 @@ extension Test.Attachment {
 
     // FIXME: use NSFileCoordinator on Darwin?
 
+    let url = url.resolvingSymlinksInPath()
     let isDirectory = try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory!
+
+    let attachableValue: any Test.Attachable & Sendable
     if isDirectory {
-      let attachableValue = await _DirectoryContentAttachableProxy(contentsOfDirectoryAt: url)
-      self.init(attachableValue, named: preferredName, as: nil, sourceLocation: sourceLocation)
-      return
+      attachableValue = await _DirectoryContentAttachableProxy(contentsOfDirectoryAt: url)
+    } else {
+      // Load the file.
+      attachableValue = try Data(contentsOf: url, options: [.mappedIfSafe])
     }
 
-    // Load the file.
-    let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-
-    // Determine the preferred name of the attachment.
+    // Determine the preferred name of the attachment if one was not provided.
     var preferredName = preferredName
-    if preferredName == nil {
-      let lastPathComponent = url.lastPathComponent
-      if !lastPathComponent.isEmpty {
-        preferredName = lastPathComponent
-      }
+    if preferredName == nil, case let lastPathComponent = url.lastPathComponent, !lastPathComponent.isEmpty {
+    if isDirectory {
+      preferredName = (lastPathComponent as NSString).appendingPathExtension("tar.gz")
+    } else {
+      preferredName = lastPathComponent
     }
 
-    // Determine the content type of the attachment.
-    var contentType: (any Sendable)?
 #if SWT_TARGET_OS_APPLE && canImport(UniformTypeIdentifiers)
-    if #available(_uttypesAPI, *) {
-      contentType = try url.resourceValues(forKeys: [.contentTypeKey]).contentType
-    }
+      // Determine the content type of the attachment. We don't do this for
+      // directories because we already know the type, but also because we want
+      // to append .tar.gz as an extension and that isn't a valid path extension
+      // according to UniformTypeIdentifiers.
+      if !isDirectory, #available(_uttypesAPI, *), let contentType = try url.resourceValues(forKeys: [.contentTypeKey]).contentType {
+        self.init(attachableValue, named: preferredName, as: contentType, sourceLocation: sourceLocation)
+        return
+      }
 #endif
+    }
 
-    self.init(data, named: preferredName, as: contentType, sourceLocation: sourceLocation)
+    self.init(attachableValue, named: preferredName, sourceLocation: sourceLocation)
   }
 }
 
@@ -123,19 +129,6 @@ private struct _DirectoryContentAttachableProxy: Test.Attachable {
     } catch {
       _directoryContent = .failure(error)
     }
-  }
-
-  var _attachmentPreferredName: String? {
-    url.deletingPathExtension().appendingPathExtension("tar.gz").lastPathComponent
-  }
-
-  var _attachmentContentType: (any Sendable)? {
-#if SWT_TARGET_OS_APPLE && canImport(UniformTypeIdentifiers)
-    if #available(_uttypesAPI, *) {
-      return UTType.gzip
-    }
-#endif
-    return "application/gzip"
   }
 
   func withUnsafeBufferPointer<R>(for attachment: borrowing Test.Attachment, _ body: (UnsafeRawBufferPointer) throws -> R) throws -> R {

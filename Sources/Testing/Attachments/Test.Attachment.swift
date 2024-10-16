@@ -33,32 +33,9 @@ extension Test {
     /// The source location of the attachment.
     public var sourceLocation: SourceLocation
 
-    /// Initialize an instance of this type that encloses the given attachable
-    /// value.
-    ///
-    /// - Parameters:
-    ///   - attachableValue: The value that will be attached to the output of
-    ///     the test run.
-    ///   - preferredName: The preferred name of the attachment when writing it
-    ///     to a test report or to disk. If `nil`, the testing library attempts
-    ///     to derive a reasonable filename for the attached value.
-    ///   - contentType: The content type of the attached value, if applicable
-    ///     and known to the caller.
-    ///   - sourceLocation: The source location of the attachment.
-    ///
-    /// This is the designated initializer for this type.
-    package init(
-      _ attachableValue: some Attachable & Sendable & Copyable,
-      named preferredName: String?,
-      as contentType: (any Sendable)?,
-      sourceLocation: SourceLocation
-    ) {
-      self.attachableValue = attachableValue
-      self.preferredName = preferredName ?? attachableValue._attachmentPreferredName ?? "untitled"
-      self._contentType = contentType
-      self.sourceLocation = sourceLocation
-
-      self.update()
+    /// The default preferred name to use if the developer does not supply one.
+    package static var defaultPreferredName: String {
+      "untitled"
     }
 
     /// Initialize an instance of this type that encloses the given attachable
@@ -76,7 +53,9 @@ extension Test {
       named preferredName: String? = nil,
       sourceLocation: SourceLocation = #_sourceLocation
     ) {
-      self.init(attachableValue, named: preferredName, as: nil, sourceLocation: sourceLocation)
+      self.attachableValue = attachableValue
+      self.preferredName = preferredName ?? Self.defaultPreferredName
+      self.sourceLocation = sourceLocation
     }
 
     /// A filename to use when writing this attachment to a test report or to a
@@ -87,19 +66,6 @@ extension Test {
     /// value of this property has not been explicitly set, the testing library
     /// will attempt to generate its own value.
     public var preferredName: String
-
-    /// Storage for the `contentType` property defined in the
-    /// UniformTypeIdentifiers cross-module overlay and for the `mediaType`
-    /// property defined locally.
-    ///
-    /// Where possible, use the `contentType` or `mediaType` property instead of
-    /// this one. Use this property directly only if implementing one of those
-    /// properties or if you need to know if the stored value of this property
-    /// is `nil`.
-    ///
-    /// Do not set this property directly (unless implementing one of the above
-    /// properties.)
-    package var _contentType: (any Sendable)?
   }
 }
 
@@ -122,58 +88,12 @@ private struct _AttachableProxy: Test.Attachable, Sendable {
   /// attachable value.
   var encodedValue = [UInt8]()
 
-  var _attachmentPreferredName: String?
-  package var _attachmentContentType: (any Sendable)?
-
   func withUnsafeBufferPointer<R>(for attachment: borrowing Test.Attachment, _ body: (UnsafeRawBufferPointer) throws -> R) throws -> R {
     try encodedValue.withUnsafeBufferPointer(for: attachment, body)
   }
 }
 
 extension Test.Attachment {
-  /// Initialize an instance of this type that encloses the given attachable
-  /// value.
-  ///
-  /// - Parameters:
-  ///   - attachableValue: The value that will be attached to the output of
-  ///     the test run.
-  ///   - preferredName: The preferred name of the attachment when writing it
-  ///     to a test report or to disk. If `nil`, the testing library attempts
-  ///     to derive a reasonable filename for the attached value.
-  ///   - contentType: The content type of the attached value, if applicable and
-  ///     known to the caller.
-  ///   - sourceLocation: The source location of the attachment.
-  ///
-  /// When attaching a value of a type that does not conform to `Sendable`, the
-  /// testing library encodes it as data immediately. If the value cannot be
-  /// encoded and an error is thrown, that error is recorded as an issue in the
-  /// current test and the resulting instance of ``Test/Attachment`` is empty.
-  package init(
-    _ attachableValue: borrowing some Test.Attachable & ~Copyable,
-    named preferredName: String?,
-    as contentType: (any Sendable)?,
-    sourceLocation: SourceLocation
-  ) {
-    var proxyAttachable = _AttachableProxy()
-    proxyAttachable._attachmentPreferredName = attachableValue._attachmentPreferredName
-    proxyAttachable._attachmentContentType = attachableValue._attachmentContentType
-
-    // BUG: the borrow checker thinks that withErrorRecording() is consuming
-    // attachableValue, so get around it with an additional do/catch clause.
-    do {
-      let proxyAttachment = Self(proxyAttachable, named: preferredName, as: contentType, sourceLocation: sourceLocation)
-      proxyAttachable.encodedValue = try attachableValue.withUnsafeBufferPointer(for: proxyAttachment) { buffer in
-        [UInt8](buffer)
-      }
-    } catch {
-      Issue.withErrorRecording(at: sourceLocation) {
-        throw error
-      }
-    }
-
-    self.init(proxyAttachable, named: preferredName, as: contentType, sourceLocation: sourceLocation)
-  }
-
   /// Initialize an instance of this type that encloses the given attachable
   /// value.
   ///
@@ -196,7 +116,22 @@ extension Test.Attachment {
     named preferredName: String? = nil,
     sourceLocation: SourceLocation = #_sourceLocation
   ) {
-    self.init(attachableValue, named: preferredName, as: nil, sourceLocation: sourceLocation)
+    var proxyAttachable = _AttachableProxy()
+
+    // BUG: the borrow checker thinks that withErrorRecording() is consuming
+    // attachableValue, so get around it with an additional do/catch clause.
+    do {
+      let proxyAttachment = Self(proxyAttachable, named: preferredName, sourceLocation: sourceLocation)
+      proxyAttachable.encodedValue = try attachableValue.withUnsafeBufferPointer(for: proxyAttachment) { buffer in
+        [UInt8](buffer)
+      }
+    } catch {
+      Issue.withErrorRecording(at: sourceLocation) {
+        throw error
+      }
+    }
+
+    self.init(proxyAttachable, named: preferredName, sourceLocation: sourceLocation)
   }
 }
 

@@ -33,7 +33,9 @@ extension Test.Attachment {
     as contentType: UTType,
     sourceLocation: SourceLocation = #_sourceLocation
   ) {
-    self.init(attachableValue, named: preferredName, as: contentType as any Sendable, sourceLocation: sourceLocation)
+    var preferredName = preferredName ?? Self.defaultPreferredName
+    preferredName = (preferredName as NSString).appendingPathExtension(for: contentType)
+    self.init(attachableValue, named: preferredName, sourceLocation: sourceLocation)
   }
 
   /// Initialize an instance of this type that encloses the given attachable
@@ -61,7 +63,9 @@ extension Test.Attachment {
     as contentType: UTType,
     sourceLocation: SourceLocation = #_sourceLocation
   ) {
-    self.init(attachableValue, named: preferredName, as: contentType as any Sendable, sourceLocation: sourceLocation)
+    var preferredName = preferredName ?? Self.defaultPreferredName
+    preferredName = (preferredName as NSString).appendingPathExtension(for: contentType)
+    self.init(attachableValue, named: preferredName, sourceLocation: sourceLocation)
   }
 }
 
@@ -70,29 +74,19 @@ extension Test.Attachment {
 extension Test.Attachment {
   /// The content type of the attachment, if known.
   ///
-  /// If the value of this property was not provided during initialization and
-  /// was not subsequently set, the testing library makes a best effort to
-  /// determine the type of the data represented by this value. If no better
-  /// type is available for this attachment, the value of this property will be
-  /// [`UTType.data`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/data).
+  /// The value of this property is derived from the value of the
+  /// ``preferredName`` property. If no better type is available for an
+  /// attachment, the value of this property will be [`UTType.data`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/data).
   ///
   /// If you set the value of this property to a new type, the value of this
-  /// instance's ``preferredName`` property may be updated to include a path
+  /// instance's ``preferredName`` property will be updated to include a path
   /// extension that matches the new type.
   public var contentType: UTType {
     get {
-      if let mediaType = _contentType as? String, let contentType = UTType(mimeType: mediaType) {
-        return contentType
-      }
-      return _contentType as? UTType ?? .data
+      UTType(filenameExtension: (preferredName as NSString).pathExtension) ?? .data
     }
     set {
-      let oldValue = _contentType as? UTType
-      _contentType = newValue
-      if oldValue != newValue {
-        self.update()
-      }
+      preferredName = (preferredName as NSString).appendingPathExtension(for: newValue)
     }
   }
-}
-#endif
+}#endif
